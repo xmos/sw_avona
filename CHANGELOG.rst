@@ -1,6 +1,10 @@
 XMOS Voice Framework Change Log
 ===============================
 
+0.8.1
+
+  * FIXED: Added back missing documentation
+
 0.8.0
 -----
 
