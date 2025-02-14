@@ -105,7 +105,7 @@ def create_task_distribution():
     fp_tdist_h = open(tdist_h_file_name, 'w')
     fp_tdist_h.write(autogen_message)
     fp_tdist_h.write(pragma_once)
-    fp_tdist_h.write(f"#define AEC_THREAD_COUNT   ({num_threads})\n")
+    fp_tdist_h.write(f"#define AEC_THREAD_COUNT   {num_threads}\n")
 
     fp_c = open(c_file_name, 'w')
     # Distribute multiple tasks across multiple channels on different cores 
