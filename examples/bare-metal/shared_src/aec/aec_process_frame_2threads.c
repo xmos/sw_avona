@@ -30,8 +30,51 @@ DECLARE_JOB(calc_T_task, (par_tasks_and_channels_t*, aec_state_t*, aec_state_t*,
 DECLARE_JOB(filter_adapt_task, (par_tasks_t*, aec_state_t*, aec_state_t*, int, int));
 
 extern task_distribution_t tdist;
+
+#if (AEC_THREAD_COUNT <= 0) || (AEC_THREAD_COUNT > 5)
+#error Not a valid number of AEC threads
+#endif
+
+#define LAUNCH_THREADS1(api_name, par_struct, ...)          \
+PAR_JOBS(                                                   \
+    PJOB(api_name, (par_struct[0], __VA_ARGS__))            \
+);
+
+#define LAUNCH_THREADS2(api_name, par_struct, ...)          \
+PAR_JOBS(                                                   \
+    PJOB(api_name, (par_struct[0], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[1], __VA_ARGS__))            \
+);
+
+#define LAUNCH_THREADS3(api_name, par_struct, ...)          \
+PAR_JOBS(                                                   \
+    PJOB(api_name, (par_struct[0], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[1], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[2], __VA_ARGS__))            \
+);
+
+#define LAUNCH_THREADS4(api_name, par_struct, ...)          \
+PAR_JOBS(                                                   \
+    PJOB(api_name, (par_struct[0], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[1], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[2], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[3], __VA_ARGS__))            \
+);
+
+#define LAUNCH_THREADS5(api_name, par_struct, ...)          \
+PAR_JOBS(                                                   \
+    PJOB(api_name, (par_struct[0], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[1], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[2], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[3], __VA_ARGS__)),           \
+    PJOB(api_name, (par_struct[3], __VA_ARGS__))            \
+);
+
+#define GET_LAUNCH_N(N) LAUNCH_THREADS ## N
+#define LAUNCH_N_THREADS(N, api_name, par_struct, ...) GET_LAUNCH_N(N) (api_name, par_struct,  __VA_ARGS__)
+#define LAUNCH_TASK_THREADS(api_name, par_struct, ...) LAUNCH_N_THREADS(AEC_THREAD_COUNT, api_name, par_struct,  __VA_ARGS__)
+
 static unsigned X_energy_recalc_bin = 0;
-static int framenum = 0;
 void aec_process_frame_2threads(
         aec_state_t *main_state,
         aec_state_t *shadow_state,
@@ -49,15 +92,9 @@ void aec_process_frame_2threads(
     aec_frame_init(main_state, shadow_state, y_data, x_data);
 
     // Calculate Exponential moving average (EMA) energy of the mic and reference input.
-    PAR_JOBS(
-        PJOB(calc_time_domain_ema_energy_task, (tdist.par_1_tasks_and_channels[0], main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_EMA)),
-        PJOB(calc_time_domain_ema_energy_task, (tdist.par_1_tasks_and_channels[1], main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_EMA))
-        );
+    LAUNCH_TASK_THREADS(calc_time_domain_ema_energy_task, tdist.par_1_tasks_and_channels, main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_EMA)
 
-    PAR_JOBS(
-        PJOB(calc_time_domain_ema_energy_task, (tdist.par_1_tasks_and_channels[0], main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_EMA)),
-        PJOB(calc_time_domain_ema_energy_task, (tdist.par_1_tasks_and_channels[1], main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_EMA))
-        );
+    LAUNCH_TASK_THREADS(calc_time_domain_ema_energy_task, tdist.par_1_tasks_and_channels, main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_EMA)
 
     // Calculate mic input spectrum for all num_y_channels of mic input
     /* The spectrum calculation is done in place. Taking mic input as example, after the aec_forward_fft() call
@@ -69,16 +106,10 @@ void aec_process_frame_2threads(
      * Same is true for reference spectrum samples pointed to by  main_state->shared_state->X[ch].data
      * as well.
      */
-    PAR_JOBS(
-        PJOB(fft_task, (tdist.par_1_tasks_and_channels[0], main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_FFT)),
-        PJOB(fft_task, (tdist.par_1_tasks_and_channels[1], main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_FFT))
-        );
+    LAUNCH_TASK_THREADS(fft_task, tdist.par_1_tasks_and_channels, main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_FFT)
 
     // Calculate reference input spectrum for all num_x_channels of reference input
-    PAR_JOBS(
-        PJOB(fft_task, (tdist.par_1_tasks_and_channels[0], main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_FFT)),
-        PJOB(fft_task, (tdist.par_1_tasks_and_channels[1], main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_FFT))
-        );
+    LAUNCH_TASK_THREADS(fft_task, tdist.par_1_tasks_and_channels, main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_FFT)
 
     // Calculate sum of X energy over X FIFO phases for all num_x_channels reference channels for main and shadow filter.   
     /* AEC data structures store a single copy of the X FIFO that is shared between the main and shadow filter.
@@ -92,10 +123,7 @@ void aec_process_frame_2threads(
      * 32bit values where the value at index n is the nth X sample's energy summed over main_state->num_phases number
      * of frames in the X FIFO.
      */
-    PAR_JOBS(
-        PJOB(update_X_energy_task, (tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_energy_recalc_bin)),
-        PJOB(update_X_energy_task, (tdist.par_2_tasks_and_channels[1], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_energy_recalc_bin))
-        );
+    LAUNCH_TASK_THREADS(update_X_energy_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_energy_recalc_bin)
 
     // Increment X_energy_recalc_bin to the next sample index.
     /* Passing X_energy_recalc_bin to aec_calc_X_fifo_energy() ensures that energy of sample at index X_energy_recalc_bin
@@ -111,10 +139,7 @@ void aec_process_frame_2threads(
      * Also, calculate state->shared_state->sigma_XX. sigma_XX is the EMA of current X frame energy.
      * It is later used to time smooth the X_energy while calculating the normalisation spectrum
      */
-    PAR_JOBS(
-        PJOB(update_X_fifo_task, (tdist.par_1_tasks_and_channels[0], main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels)),
-        PJOB(update_X_fifo_task, (tdist.par_1_tasks_and_channels[1], main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels))
-        );
+    LAUNCH_TASK_THREADS(update_X_fifo_task, tdist.par_1_tasks_and_channels, main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels)
 
     // Copy state->shared_state->X_fifo BFP struct to main_state->X_fifo_1d and shadow_state->X_fifo_1d BFP structs
     /* The updated state->shared_state->X_FIFO BFP structures are copied to an alternate set of BFP structs present in the 
@@ -128,65 +153,44 @@ void aec_process_frame_2threads(
     /* For main filter, main_state->Error[ch] and main_state->Y_hat[ch] are updated.
      * For shadow filter, shadow_state->Error[ch] and shadow_state->Y_hat[ch] are updated. 
      */
-    PAR_JOBS(
-        PJOB(calc_Error_task, (tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels)),
-        PJOB(calc_Error_task, (tdist.par_2_tasks_and_channels[1], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels))
-        );
+    LAUNCH_TASK_THREADS(calc_Error_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels)
     
     // Calculate time domain error and time domain estimated mic input from their spectrums calculated in the previous step.
     /* The time domain estimated mic_input (y_hat) is used to calculate the average coherence between y and y_hat in aec_calc_coherence.
      * Only the estimated mic input calculated using the main filter is needed for coherence calculation, so the y_hat calculation is
      * done only for main filter.
      */
-    PAR_JOBS(
-        PJOB(ifft_task, (tdist.par_3_tasks_and_channels[0], main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels)),
-        PJOB(ifft_task, (tdist.par_3_tasks_and_channels[1], main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels))
-        );
+    LAUNCH_TASK_THREADS(ifft_task, tdist.par_3_tasks_and_channels, main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels)
 
     // Calculate average coherence and average slow moving coherence between mic and estimated mic time domain signals
     // main_state->shared_state->coh_mu_state[ch].coh and main_state->shared_state->coh_mu_state[ch].coh_slow are updated
-    PAR_JOBS(
-        PJOB(calc_coh_task, (tdist.par_1_tasks_and_channels[0], main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels)),
-        PJOB(calc_coh_task, (tdist.par_1_tasks_and_channels[1], main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels))
-        );
+    LAUNCH_TASK_THREADS(calc_coh_task, tdist.par_1_tasks_and_channels, main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels)
 
     // Calculate AEC filter time domain output. This is the output sent to downstream pipeline stages
     /* Application can choose to not generate AEC shadow filter output by passing NULL as output_shadow argument.
      * Note that aec_calc_output() will still need to be called since this function also windows the error signal
      * which is needed for subsequent processing of the shadow filter even when output is not generated.
      */
-    PAR_JOBS(
-        PJOB(calc_output_task, (tdist.par_2_tasks_and_channels[0], main_state, shadow_state, (int32_t*)output_main, (int32_t*)output_shadow, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels)),
-        PJOB(calc_output_task, (tdist.par_2_tasks_and_channels[1], main_state, shadow_state, (int32_t*)output_main, (int32_t*)output_shadow, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels))
-        );
+    LAUNCH_TASK_THREADS(calc_output_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, (int32_t*)output_main, (int32_t*)output_shadow, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels)
 
     // Calculate exponential moving average of main_filter time domain error.
     /* The EMA error energy is used in ERLE calculations which are done only for the main filter,
      * so not calling this function to calculate shadow filter error EMA energy.
      */
-    PAR_JOBS(
-        PJOB(calc_time_domain_ema_energy_task, (tdist.par_1_tasks_and_channels[0], main_state, (int32_t*)output_main, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_EMA)),
-        PJOB(calc_time_domain_ema_energy_task, (tdist.par_1_tasks_and_channels[1], main_state, (int32_t*)output_main, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_EMA))
-        );
+    LAUNCH_TASK_THREADS(calc_time_domain_ema_energy_task, tdist.par_1_tasks_and_channels, main_state, (int32_t*)output_main, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_EMA)
 
     // Convert shadow and main filters error back to frequency domain since subsequent AEC functions will use the error spectrum.
     /* The error spectrum is later used to compute T values which are then used while updating the adaptive filter.
      * main_state->Error[ch] and shadow_state->Error[ch] are updated.
      */
-    PAR_JOBS(
-        PJOB(fft_task, (tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_FFT)),
-        PJOB(fft_task, (tdist.par_2_tasks_and_channels[1], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_FFT))
-            );
+    LAUNCH_TASK_THREADS(fft_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_FFT)
 
     // Calculate energies of mic input and error spectrum of main and shadow filters.
     /* These energy values are later used in aec_compare_filters_and_calc_mu() to estimate how well the filters are performing.
      * main_state->overall_Error[ch], shadow_state->overall_Error[ch] and main_state->shared_state->overall_Y[ch] are
      * updated.
      */
-    PAR_JOBS(
-        PJOB(calc_freq_domain_energy_task, (tdist.par_3_tasks_and_channels[0], main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels)),
-        PJOB(calc_freq_domain_energy_task, (tdist.par_3_tasks_and_channels[1], main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels))
-        );
+    LAUNCH_TASK_THREADS(calc_freq_domain_energy_task, tdist.par_3_tasks_and_channels, main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels)
 
     // Compare and update filters. Calculate adaption step_size mu
     /* At this point we're ready to check how well the filters are performing and update them if needed.
@@ -206,29 +210,19 @@ void aec_process_frame_2threads(
      * as one of the input arguments.
      * main_state->inv_X_energy[ch] and shadow_state->inv_X_energy[ch] is updated.
      */
-    PAR_JOBS(
-        PJOB(calc_normalisation_spectrum_task, (tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels)),
-        PJOB(calc_normalisation_spectrum_task, (tdist.par_2_tasks_and_channels[1], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels))
-        );
+    LAUNCH_TASK_THREADS(calc_normalisation_spectrum_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels)
 
     //Adapt H_hat
     for(int ych=0; ych<num_y_channels; ych++) {
         // Compute T values.
         // T is a function of state->mu, state->Error and state->inv_X_energy.
         // main_state->T[ch] and shadow_state->T[ch] are updated.
-        PAR_JOBS(
-            PJOB(calc_T_task, (tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, ych)),
-            PJOB(calc_T_task, (tdist.par_2_tasks_and_channels[1], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, ych))
-            );
+        LAUNCH_TASK_THREADS(calc_T_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, ych)
 
         // Update filters
         // main_state->H_hat and shadow_state->H_hat are updated.
-        PAR_JOBS(
-            PJOB(filter_adapt_task, (tdist.par_2_tasks[0], main_state, shadow_state, AEC_2_TASKS_PASSES, ych)),
-            PJOB(filter_adapt_task, (tdist.par_2_tasks[1], main_state, shadow_state, AEC_2_TASKS_PASSES, ych))
-            );
+        LAUNCH_TASK_THREADS(filter_adapt_task, tdist.par_2_tasks, main_state, shadow_state, AEC_2_TASKS_PASSES, ych)
     }
-    framenum++; 
 }
 
 void calc_time_domain_ema_energy_task(par_tasks_and_channels_t* s, aec_state_t *state, int32_t *output, int passes, int channels, enum e_td_ema type) {
@@ -339,8 +333,7 @@ void calc_Error_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_s
     }
 }
 
-void ifft_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_state_t *shadow_state, int passes, int channels)
-{
+void ifft_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_state_t *shadow_state, int passes, int channels) {
     for(int i=0; i<passes; i++) {
         int task = s[i].task;
         int ch = s[i].channel;
@@ -361,6 +354,7 @@ void ifft_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_state_t
         }
     }
 }
+
 void calc_coh_task(par_tasks_and_channels_t *s, aec_state_t *state, int passes, int channels) {
     for(int i=0; i<passes; i++) {
         int ch = s[i].channel;
@@ -398,8 +392,7 @@ void calc_output_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_
     }
 }
 
-void calc_freq_domain_energy_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_state_t *shadow_state, int passes, int channels)
-{
+void calc_freq_domain_energy_task(par_tasks_and_channels_t *s, aec_state_t *main_state, aec_state_t *shadow_state, int passes, int channels) {
     for(int i=0; i<passes; i++) {
         int task = s[i].task;
         int ch = s[i].channel;

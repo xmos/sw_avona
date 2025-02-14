@@ -39,7 +39,7 @@ typedef struct {
 }par_tasks_and_channels_t;
 
 
-#define AEC_THREAD_COUNT   (2) /// <Number of hardware threads available
+#define AEC_THREAD_COUNT   2 /// <Number of hardware threads available
 
 /** Number of iterations run on a given thread when distributing 2 tasks across AEC_THREAD_COUNT threads*/
 #define AEC_2_TASKS_PASSES   (1)
