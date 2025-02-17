@@ -10,14 +10,6 @@ extern void aec_process_frame_2threads(
         const int32_t (*y_data)[AEC_FRAME_ADVANCE],
         const int32_t (*x_data)[AEC_FRAME_ADVANCE]);
 
-extern void aec_process_frame_1thread(
-        aec_state_t *main_state,
-        aec_state_t *shadow_state,
-        int32_t (*output_main)[AEC_FRAME_ADVANCE],
-        int32_t (*output_shadow)[AEC_FRAME_ADVANCE],
-        const int32_t (*y_data)[AEC_FRAME_ADVANCE],
-        const int32_t (*x_data)[AEC_FRAME_ADVANCE]);
-
 static void aec_switch_configuration(stage_1_state_t *state, aec_conf_t *conf)
 {
     aec_init(&state->aec_main_state, &state->aec_shadow_state, &state->aec_shared_state,
@@ -141,11 +133,7 @@ void stage_1_process_frame(stage_1_state_t *state, int32_t (*output_frame)[AP_FR
 #endif
 
     /** AEC*/
-#if (NUM_AEC_THREADS > 1)
     aec_process_frame_2threads(&state->aec_main_state, &state->aec_shadow_state, output_frame, NULL, input_y, input_x);
-#else
-    aec_process_frame_1thread(&state->aec_main_state, &state->aec_shadow_state, output_frame, NULL, input_y, input_x);
-#endif
 
     /** Update metadata*/
     *max_ref_energy = aec_calc_max_input_energy(input_x, state->aec_main_state.shared_state->num_x_channels);

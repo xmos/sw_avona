@@ -16,14 +16,6 @@
 #include "profile.h"
 #endif
 
-extern void aec_process_frame_1thread(
-        aec_state_t *main_state,
-        aec_state_t *shadow_state,
-        int32_t (*output_main)[AEC_FRAME_ADVANCE],
-        int32_t (*output_shadow)[AEC_FRAME_ADVANCE],
-        const int32_t (*y_data)[AEC_FRAME_ADVANCE],
-        const int32_t (*x_data)[AEC_FRAME_ADVANCE]);
-
 extern void aec_process_frame_2threads(
         aec_state_t *main_state,
         aec_state_t *shadow_state,
@@ -133,13 +125,8 @@ void pipeline_process_frame(pipeline_state_t *state,
     int32_t aec_output_shadow[AP_MAX_Y_CHANNELS][AP_FRAME_ADVANCE];
     // Writing main filter output to output_data directly
 
-#if (AEC_THREAD_COUNT == 1)
-        aec_process_frame_1thread(&state->aec_main_state, &state->aec_shadow_state, output_data, aec_output_shadow, input_y_data, input_x_data);
-#elif (AEC_THREAD_COUNT == 2)
-        aec_process_frame_2threads(&state->aec_main_state, &state->aec_shadow_state, output_data, aec_output_shadow, input_y_data, input_x_data);
-#else
-        #error "C app only supported for AEC_THREAD_COUNT range [1, 2]"
-#endif
+    aec_process_frame_2threads(&state->aec_main_state, &state->aec_shadow_state, output_data, aec_output_shadow, input_y_data, input_x_data);
+
     prof(7, "end_aec_process_frame");
     
     prof(8, "start_estimate_delay");

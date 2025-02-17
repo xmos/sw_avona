@@ -6,14 +6,12 @@
 #include <assert.h>
 #include <limits.h>
 
-#include "aec_defines.h"
 #include "aec_api.h"
 
 #include "aec_config.h"
 #include "aec_memory_pool.h"
 #include "fileio.h"
 #include "wav_utils.h"
-
 
 
 extern void aec_process_frame_2threads(

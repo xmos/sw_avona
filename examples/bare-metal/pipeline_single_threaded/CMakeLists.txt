@@ -18,17 +18,12 @@ target_link_libraries(fwk_voice_example_pipeline_single_thread_interface
         fwk_voice::ns
         fwk_voice::agc
         fwk_voice::ic
-        fwk_voice::example::aec1thread
+        fwk_voice::example::aec2thread
         fwk_voice::example::delay_buffer
         fwk_voice::example::stage_1
         fwk_voice::example::fileutils
         lib_xcore_math
         )
-
-target_compile_definitions(fwk_voice_example_pipeline_single_thread_interface
-    INTERFACE
-        NUM_AEC_THREADS=1
-    )
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL XCORE_XS3A)
     target_sources(fwk_voice_example_pipeline_single_thread_interface

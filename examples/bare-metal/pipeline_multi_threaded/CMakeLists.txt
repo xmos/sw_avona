@@ -25,11 +25,6 @@ target_link_libraries(fwk_voice_example_pipeline_multi_thread_interface
         lib_xcore_math
         )
 
-target_compile_definitions(fwk_voice_example_pipeline_multi_thread_interface
-    INTERFACE
-        NUM_AEC_THREADS=2
-    )
-
 target_sources(fwk_voice_example_pipeline_multi_thread_interface
     INTERFACE src/main.xc)
 
