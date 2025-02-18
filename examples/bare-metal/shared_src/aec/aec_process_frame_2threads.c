@@ -344,7 +344,7 @@ void aec_process_frame_2threads(
 
     // Calculate Exponential moving average (EMA) energy of the mic and reference input.
 
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_time_domain_ema_energy_task, tdist.par_1_tasks_and_channels, main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_EMA)
     LAUNCH_TASK_THREADS(calc_time_domain_ema_energy_task, tdist.par_1_tasks_and_channels, main_state, NULL, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_EMA)
     #else
@@ -363,7 +363,7 @@ void aec_process_frame_2threads(
      * Same is true for reference spectrum samples pointed to by  main_state->shared_state->X[ch].data
      * as well.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(fft_task, tdist.par_1_tasks_and_channels, main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, Y_FFT)
     LAUNCH_TASK_THREADS(fft_task, tdist.par_1_tasks_and_channels, main_state, shadow_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_FFT)
     #else
@@ -383,7 +383,7 @@ void aec_process_frame_2threads(
      * 32bit values where the value at index n is the nth X sample's energy summed over main_state->num_phases number
      * of frames in the X FIFO.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(update_X_energy_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_energy_recalc_bin)
     #else
     update_X_energy_task(tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, X_energy_recalc_bin);
@@ -403,7 +403,7 @@ void aec_process_frame_2threads(
      * Also, calculate state->shared_state->sigma_XX. sigma_XX is the EMA of current X frame energy.
      * It is later used to time smooth the X_energy while calculating the normalisation spectrum
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(update_X_fifo_task, tdist.par_1_tasks_and_channels, main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels)
     #else
     update_X_fifo_task(tdist.par_1_tasks_and_channels[0], main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_x_channels);
@@ -421,7 +421,7 @@ void aec_process_frame_2threads(
     /* For main filter, main_state->Error[ch] and main_state->Y_hat[ch] are updated.
      * For shadow filter, shadow_state->Error[ch] and shadow_state->Y_hat[ch] are updated. 
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_Error_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels)
     #else
     calc_Error_task(tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels);
@@ -432,7 +432,7 @@ void aec_process_frame_2threads(
      * Only the estimated mic input calculated using the main filter is needed for coherence calculation, so the y_hat calculation is
      * done only for main filter.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(ifft_task, tdist.par_3_tasks_and_channels, main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels)
     #else
     ifft_task(tdist.par_3_tasks_and_channels[0], main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels);
@@ -440,7 +440,7 @@ void aec_process_frame_2threads(
 
     // Calculate average coherence and average slow moving coherence between mic and estimated mic time domain signals
     // main_state->shared_state->coh_mu_state[ch].coh and main_state->shared_state->coh_mu_state[ch].coh_slow are updated
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_coh_task, tdist.par_1_tasks_and_channels, main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels)
     #else
     calc_coh_task(tdist.par_1_tasks_and_channels[0], main_state, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels);
@@ -451,7 +451,7 @@ void aec_process_frame_2threads(
      * Note that aec_calc_output() will still need to be called since this function also windows the error signal
      * which is needed for subsequent processing of the shadow filter even when output is not generated.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_output_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, (int32_t*)output_main, (int32_t*)output_shadow, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels)
     #else
     calc_output_task(tdist.par_2_tasks_and_channels[0], main_state, shadow_state, (int32_t*)output_main, (int32_t*)output_shadow, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels);
@@ -461,7 +461,7 @@ void aec_process_frame_2threads(
     /* The EMA error energy is used in ERLE calculations which are done only for the main filter,
      * so not calling this function to calculate shadow filter error EMA energy.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_time_domain_ema_energy_task, tdist.par_1_tasks_and_channels, main_state, (int32_t*)output_main, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_EMA)
     #else
     calc_time_domain_ema_energy_task(tdist.par_1_tasks_and_channels[0], main_state, (int32_t*)output_main, AEC_1_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_EMA);
@@ -471,7 +471,7 @@ void aec_process_frame_2threads(
     /* The error spectrum is later used to compute T values which are then used while updating the adaptive filter.
      * main_state->Error[ch] and shadow_state->Error[ch] are updated.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(fft_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_FFT)
     #else
     fft_task(tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_y_channels, ERROR_FFT);
@@ -482,7 +482,7 @@ void aec_process_frame_2threads(
      * main_state->overall_Error[ch], shadow_state->overall_Error[ch] and main_state->shared_state->overall_Y[ch] are
      * updated.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_freq_domain_energy_task, tdist.par_3_tasks_and_channels, main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels)
     #else
     calc_freq_domain_energy_task(tdist.par_3_tasks_and_channels[0], main_state, shadow_state, AEC_3_TASKS_AND_CHANNELS_PASSES, num_y_channels);
@@ -506,7 +506,7 @@ void aec_process_frame_2threads(
      * as one of the input arguments.
      * main_state->inv_X_energy[ch] and shadow_state->inv_X_energy[ch] is updated.
      */
-    #if AEC_THREAD_COUNT != 1
+    #if defined(__XS3A__)
     LAUNCH_TASK_THREADS(calc_normalisation_spectrum_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels)
     #else
     calc_normalisation_spectrum_task(tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels);
@@ -517,7 +517,7 @@ void aec_process_frame_2threads(
         // Compute T values.
         // T is a function of state->mu, state->Error and state->inv_X_energy.
         // main_state->T[ch] and shadow_state->T[ch] are updated.
-        #if AEC_THREAD_COUNT != 1
+        #if defined(__XS3A__)
         LAUNCH_TASK_THREADS(calc_T_task, tdist.par_2_tasks_and_channels, main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, ych)
         #else
         calc_T_task(tdist.par_2_tasks_and_channels[0], main_state, shadow_state, AEC_2_TASKS_AND_CHANNELS_PASSES, num_x_channels, ych);
@@ -525,7 +525,7 @@ void aec_process_frame_2threads(
 
         // Update filters
         // main_state->H_hat and shadow_state->H_hat are updated.
-        #if AEC_THREAD_COUNT != 1
+        #if defined(__XS3A__)
         LAUNCH_TASK_THREADS(filter_adapt_task, tdist.par_2_tasks, main_state, shadow_state, AEC_2_TASKS_PASSES, ych)
         #else
         filter_adapt_task(tdist.par_2_tasks[0], main_state, shadow_state, AEC_2_TASKS_PASSES, ych);
